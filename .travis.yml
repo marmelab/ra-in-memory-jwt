@@ -1,0 +1,5 @@
+language: minimal
+before_script:
+- make install
+script:
+- make test
