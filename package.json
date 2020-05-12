@@ -1,0 +1,24 @@
+{
+  "name": "ra-in-memory-jwt",
+  "version": "1.0.0",
+  "description": "Manage React-admin authentication with jwt in memory, not in local storage",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marmelab/ra-in-memory-jwt.git"
+  },
+  "keywords": [
+    "react-admin",
+    "jwt",
+    "authentication"
+  ],
+  "author": "Alexis Janvier <alexis@marmelab.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/marmelab/ra-in-memory-jwt/issues"
+  },
+  "homepage": "https://github.com/marmelab/ra-in-memory-jwt#readme"
+}
