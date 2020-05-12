@@ -1,0 +1,45 @@
+version: "3.5"
+
+services:
+  admin:
+    image: node:13-alpine
+    volumes:
+      - ./admin:/admin
+    working_dir: "/admin"
+    user: ${CURRENT_UID}
+    ports:
+      - 8002:3000
+    command: "npm run start"
+    depends_on:
+      - back
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - BROWSER=none
+      - CI=true
+
+  back:
+    image: node:13-alpine
+    volumes:
+      - ./back:/back
+    working_dir: "/back"
+    user: ${CURRENT_UID}
+    ports:
+      - 8001:3001
+    depends_on:
+      - postgres
+    command: "npm run start"
+    env_file:
+      - ./demo.env
+
+  postgres:
+    image: postgres:12.2
+    volumes:
+      - raInMemoryJWTDemo-pgData:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    env_file:
+      - ./demo.env
+
+volumes:
+  raInMemoryJWTDemo-pgData:

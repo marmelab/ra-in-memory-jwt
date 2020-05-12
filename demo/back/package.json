@@ -1,0 +1,34 @@
+{
+    "name": "raInMemoryKWT-demo-back",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Backend part of the ra-in-memory-jwt demo",
+    "scripts": {
+        "start": "nodemon --watch src src/index.js --ext js,json,yml",
+        "migrate:latest": "knex migrate:latest",
+        "migrate:rollback": "knex migrate:rollback",
+        "migrate:up": "knex migrate:up",
+        "migrate:down": "knex migrate:down",
+        "migrate:list": "knex migrate:list",
+        "migrate:create": "knex migrate:make"
+    },
+    "dependencies": {
+        "bcrypt": "4.0.1",
+        "convict": "6.0.0",
+        "jsonwebtoken": "8.5.1",
+        "knex": "0.21.1",
+        "knex-stringcase": "1.4.1",
+        "koa": "2.11.0",
+        "koa-bodyparser": "4.3.0",
+        "koa-json-error": "3.1.2",
+        "koa-router": "8.0.8",
+        "koa-static": "5.0.0",
+        "koa2-cors": "2.0.6",
+        "owasp-password-strength-test": "1.3.0",
+        "pg": "8.1.0",
+        "signale": "1.4.0"
+    },
+    "devDependencies": {
+        "nodemon": "2.0.3"
+    }
+}
