@@ -24,7 +24,7 @@ const formatFilters = (filters) => {
 };
 
 export default (apiUrl) => {
-    const httpClient = (apiUrl) => {
+    const httpClient = (url) => {
         const options = {
             headers: new Headers({ Accept: 'application/json' }),
         };
@@ -33,7 +33,7 @@ export default (apiUrl) => {
             options.headers.set('Authorization', `Bearer ${token}`);
         }
 
-        return fetchUtils.fetchJson(apiUrl, options);
+        return fetchUtils.fetchJson(url, options);
     };
 
     return {
@@ -59,9 +59,9 @@ export default (apiUrl) => {
         },
 
         getOne: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`).then(({ json }) => ({
-            data: json,
-        })),
+            httpClient(`${apiUrl}/${resource}/${params.id}`).then(({ json }) => ({
+                data: json,
+            })),
 
         getMany: (resource, params) => {
             const filters = params.filter;

@@ -7,7 +7,7 @@ const inMemoryJWTManager = () => {
         inMemoryJWT = token;
         return true;
     };
-    
+
     const ereaseToken = () => {
         inMemoryJWT = null;
         return true;
@@ -21,4 +21,3 @@ const inMemoryJWTManager = () => {
 };
 
 export default inMemoryJWTManager();
-
