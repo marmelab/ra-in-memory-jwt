@@ -5,10 +5,12 @@ const inMemoryJWTManager = () => {
 
     const setToken = (token) => {
         inMemoryJWT = token;
+        return true;
     };
     
     const ereaseToken = () => {
         inMemoryJWT = null;
+        return true;
     }
 
     return {
@@ -19,3 +21,4 @@ const inMemoryJWTManager = () => {
 };
 
 export default inMemoryJWTManager();
+

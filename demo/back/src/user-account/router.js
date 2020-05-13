@@ -12,17 +12,17 @@ const router = new Router({
     prefix: '/api/users',
 });
 
-// router.use(async (ctx, next) => {
-//     if (
-//         !ctx.state.jwt
-//     ) {
-//         ctx.throw(401, "You don't have the authorization to make this query");
+router.use(async (ctx, next) => {
+    if (
+        !ctx.state.jwt
+    ) {
+        ctx.throw(401, "You don't have the authorization to make this query");
 
-//         return;
-//     }
+        return;
+    }
 
-//     await next();
-// });
+    await next();
+});
 
 router.get('/', async (ctx) => {
     const { users, pagination, error } = await getPaginatedList(ctx.query);

@@ -1,6 +1,8 @@
 import { stringify } from 'query-string';
 import { fetchUtils } from 'ra-core';
 
+import inMemoryJWT from './inMemoryJWT';
+
 const getXTotalCountHeaderValue = (headers) => {
     if (!headers.has('x-total-count')) {
         throw new Error(
@@ -21,72 +23,86 @@ const formatFilters = (filters) => {
     }, {});
 };
 
-export default (apiUrl, httpClient = fetchUtils.fetchJson) => ({
-    getList: (resource, params) => {
-        const { page: currentPage, perPage } = params.pagination;
-        const { field, order } = params.sort;
-        const filters = params.filter;
-        const query = {
-            sortBy: field,
-            orderBy: order,
-            currentPage,
-            perPage,
-            ...formatFilters(filters),
+export default (apiUrl) => {
+    const httpClient = (apiUrl) => {
+        const options = {
+            headers: new Headers({ Accept: 'application/json' }),
         };
-        const url = `${apiUrl}/${resource}?${stringify(query)}`;
+        const token = inMemoryJWT.getToken();
+        if (token) {
+            options.headers.set('Authorization', `Bearer ${token}`);
+        }
 
-        return httpClient(url).then(({ headers, json }) => {
-            return {
-                data: json,
-                total: getXTotalCountHeaderValue(headers),
+        return fetchUtils.fetchJson(apiUrl, options);
+    };
+
+    return {
+        getList: (resource, params) => {
+            const { page: currentPage, perPage } = params.pagination;
+            const { field, order } = params.sort;
+            const filters = params.filter;
+            const query = {
+                sortBy: field,
+                orderBy: order,
+                currentPage,
+                perPage,
+                ...formatFilters(filters),
             };
-        });
-    },
+            const url = `${apiUrl}/${resource}?${stringify(query)}`;
 
-    getOne: (resource, params) =>
+            return httpClient(url).then(({ headers, json }) => {
+                return {
+                    data: json,
+                    total: getXTotalCountHeaderValue(headers),
+                };
+            });
+        },
+
+        getOne: (resource, params) =>
         httpClient(`${apiUrl}/${resource}/${params.id}`).then(({ json }) => ({
             data: json,
         })),
 
-    getMany: (resource, params) => {
-        const filters = params.filter;
-        const query = {
-            sortBy: 'id',
-            currentPage: 1,
-            perPage: 100,
-            ...formatFilters(filters),
-        };
-        const url = `${apiUrl}/${resource}?${stringify(query)}`;
-
-        return httpClient(url).then(({ headers, json }) => {
-            return {
-                data: json,
-                total: getXTotalCountHeaderValue(headers),
+        getMany: (resource, params) => {
+            const filters = params.filter;
+            const query = {
+                sortBy: 'id',
+                currentPage: 1,
+                perPage: 100,
+                ...formatFilters(filters),
             };
-        });
-    },
+            const url = `${apiUrl}/${resource}?${stringify(query)}`;
 
-    getManyReference: (resource, params) => {
-        const filters = params.filter;
-        const query = {
-            sortBy: 'id',
-            currentPage: 1,
-            perPage: 100,
-            ...formatFilters(filters),
-        };
-        const url = `${apiUrl}/${resource}?${stringify(query)}`;
+            return httpClient(url).then(({ headers, json }) => {
+                return {
+                    data: json,
+                    total: getXTotalCountHeaderValue(headers),
+                };
+            });
+        },
 
-        return httpClient(url).then(({ headers, json }) => {
-            return {
-                data: json,
-                total: getXTotalCountHeaderValue(headers),
+        getManyReference: (resource, params) => {
+            const filters = params.filter;
+            const query = {
+                sortBy: 'id',
+                currentPage: 1,
+                perPage: 100,
+                ...formatFilters(filters),
             };
-        });
-    },
+            const url = `${apiUrl}/${resource}?${stringify(query)}`;
 
-    update: () => Promise.reject(),
-    updateMany: () => Promise.reject(),
-    create: () => Promise.reject(),
-    delete: () => Promise.reject(),
-    deleteMany: () => Promise.reject(),
-});
+            return httpClient(url).then(({ headers, json }) => {
+                return {
+                    data: json,
+                    total: getXTotalCountHeaderValue(headers),
+                };
+            });
+        },
+
+        update: () => Promise.reject(),
+        updateMany: () => Promise.reject(),
+        create: () => Promise.reject(),
+        delete: () => Promise.reject(),
+        deleteMany: () => Promise.reject(),
+    };
+};
