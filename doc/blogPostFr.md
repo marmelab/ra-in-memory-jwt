@@ -125,6 +125,7 @@ const authProvider = {
         const status = error.status;
         if (status === 401 || status === 403) {
             inMemoryJWT.ereaseToken();
+            return Promise.reject();
         }
         return Promise.resolve();
     },
@@ -188,6 +189,176 @@ Par exemple, lorsque l'on refresh la page :
 
 ![Lorsque l'on recharge la page](raInMemoryJwtRefresh.gif)
 
-Ou bien lorsque l'on se deconnecte d'un tab alors que l'on est aussi connecter sur une seconde :
+Ou bien lorsque l'on se déconnecte d'un tab alors que l'on est aussi connecter sur une seconde :
 
 ![Connexion deux tabs](raInMemoryJwtTwoTabs.gif)
+
+## Le problème des deux tabs
+
+Lorsque le JWT est stocké dans le local storage, deux session de react admin lancé dans deux tab du navigateur vont pouvoir se partager se JWT. Et lorsque l'on se deconnecte, la suppression du JWT dans la locale storage va donc impacter les deux tabs. Ce n'est plus la cas lorsque le JWT est stocker en mémoire. La solution proposer dans l'article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/) est assez maligne, et passe par ... le local storage :)
+
+```javascript
+// inMemoryJwt.js
+const inMemoryJWTManager = () => {
+    let inMemoryJWT = null;
+
+    // This listener will allow to disconnect a session of ra started in another tab
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'ra-logout') {
+            inMemoryJWT = null;
+        }
+    });
+
+    const getToken = () => inMemoryJWT;
+
+    const setToken = (token) => {
+        inMemoryJWT = token;
+        return true;
+    };
+
+    const ereaseToken = () => {
+        inMemoryJWT = null;
+        window.localStorage.setItem('ra-logout', Date.now());
+        return true;
+    }
+
+    return {
+        ereaseToken,
+        getToken,
+        setToken,
+    }
+};
+
+export default inMemoryJWTManager();
+```
+
+Ainsi, lorsque l'utilisateur se déconnecte depuis une tab, il génère un évenement sur l'item `ra-logout` du locale storage, évènement écouté par toutes les instances de `inMemoryJWT`.
+
+## Gérer une session sur un durée de vie plus longue que celle du token
+
+L'idée directrice est d'avoir des token ayany un durée de vie limitée. Disons 5 min. Même si l'utilisateur ne recherche pas sa page, la session cessera lorsque le token ne sera plus valide. Comment étendre cette durée de session ? Et bien avec un token ! Mais ici, nous utiliserons un token très securisé (https only, same domain, etc) qui va nous permettre d'obtenir un nouveau token avant que le token courant ne soit périmé !
+
+Cela va tout d'abord nécessité du code supplémentaire coté back pour :
+
+1. Recevoir en plus du token sa durée de vie lors de la connexion. Nous pourrions le faire en décodant le token coté front, mais cela implique une complexité inutile !
+2. De poser un token `refresh-token` lors de la connexion
+   
+En effet, ce token va nous permettre d'interroger une nouvelle route à mettre en place côté API : la route `/refresh-token`. Lorsque le front va interroger cette route, et dans le cas ou le `refresh-token` est valide, ce endpoint va renvoyer un nouveau token qui pourra remplacer en memoire le token périmé.
+
+Je ne détaille pas ici le détail de l'implémentation côté API, mais vous pourrez trouver un exemple d'implémentation dans la demo du projet.
+
+Mais voyons comment cela va fonctionner côté React-admin.
+
+```javascript
+const inMemoryJWTManager = () => {
+    let logoutEventName = 'ra-logout';
+    let refreshEndpoint = '/refresh-token';
+    let inMemoryJWT = null;
+    let refreshTimeOutId;
+
+    // This listener will allow to disconnect a session of ra started in another tab
+    window.addEventListener('storage', (event) => {
+        if (event.key === logoutEventName) {
+            inMemoryJWT = null;
+        }
+    });
+
+    const setRefreshTokenEndpoint = endpoint => refreshEndpoint = endpoint;
+
+    // This countdown feature is used to renew the JWT in a way that is transparent to the user.
+    // before it's no longer valid
+    const refreshToken = (delay) => {
+        refreshTimeOutId = window.setTimeout(
+            getRefreshedJWT,
+            delay * 1000 - 5000
+        ); // Validity period of the token in seconds, minus 5 seconds
+    };
+
+    const abordRefreshToken = () => {
+        if (refreshTimeOutId) {
+            window.clearTimeout(refreshTimeOutId);
+        }
+    };
+
+    // The method make a call to the refresh-token endpoint
+    // If there is a valid cookie, the endpoint will return a fresh jwt.
+    const getRefreshedJWT = () => {
+        const request = new Request(refreshEndpoint, {
+            method: 'GET',
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+        });
+        return fetch(request)
+            .then((response) => {
+                if (response.status !== 200) {
+                    ereaseToken();
+                    global.console.log(
+                        'Failed to renew the jwt from the refresh token.'
+                    );
+                    return { token: null };
+                }
+                return response.json();
+            })
+            .then(({ token, tokenExpiry }) => {
+                if (token) {
+                    setToken(token, tokenExpiry);
+                    return true;
+                }
+
+                return false;
+            });
+    };
+
+
+    const getToken = () => inMemoryJWT;
+
+    const setToken = (token, delay) => {
+        inMemoryJWT = token;
+        refreshToken(delay);
+        return true;
+    };
+
+    const ereaseToken = () => {
+        inMemoryJWT = null;
+        abordRefreshToken();
+        window.localStorage.setItem(logoutEventName, Date.now());
+        return true;
+    }
+
+    const setLogoutEventName = name => logoutEventName = name;
+
+    return {
+        ereaseToken,
+        getToken,
+        setLogoutEventName,
+        setRefreshTokenEndpoint,
+        setToken,
+    }
+};
+
+export default inMemoryJWTManager();
+```
+
+```javascript
+//in authProvider.js
+// ...
+const authProvider = {
+    login: ({ username, password }) => {
+        const request = new Request('http://localhost:8001/authenticate', {
+            method: 'POST',
+            body: JSON.stringify({ username, password }),
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+        });
+        inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
+        return fetch(request)
+            .then((response) => {
+                if (response.status < 200 || response.status >= 300) {
+                    throw new Error(response.statusText);
+                }
+                return response.json();
+            })
+            .then(({ token, tokenExpiry }) => inMemoryJWT.setToken(token, tokenExpiry));
+    },
+// ...
+```

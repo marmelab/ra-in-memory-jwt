@@ -8,6 +8,7 @@ const authProvider = {
             headers: new Headers({ 'Content-Type': 'application/json' }),
             credentials: 'include',
         });
+        inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
         return fetch(request)
             .then((response) => {
                 if (response.status < 200 || response.status >= 300) {
@@ -15,7 +16,7 @@ const authProvider = {
                 }
                 return response.json();
             })
-            .then(({ token }) => inMemoryJWT.setToken(token));
+            .then(({ token, tokenExpiry }) => inMemoryJWT.setToken(token, tokenExpiry));
     },
     logout: () => {
         inMemoryJWT.ereaseToken();
@@ -24,7 +25,7 @@ const authProvider = {
 
     checkAuth: () => {
         if (inMemoryJWT.getToken()) {
-                return Promise.resolve();
+            return Promise.resolve();
         } else {
             return Promise.reject();
         }
@@ -34,6 +35,7 @@ const authProvider = {
         const status = error.status;
         if (status === 401 || status === 403) {
             inMemoryJWT.ereaseToken();
+            return Promise.reject();
         }
         return Promise.resolve();
     },
