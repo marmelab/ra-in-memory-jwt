@@ -341,7 +341,7 @@ export default inMemoryJWTManager();
 
 ```javascript
 //in authProvider.js
-// ...
+//...
 const authProvider = {
     login: ({ username, password }) => {
         const request = new Request('http://localhost:8001/authenticate', {
@@ -360,5 +360,19 @@ const authProvider = {
             })
             .then(({ token, tokenExpiry }) => inMemoryJWT.setToken(token, tokenExpiry));
     },
-// ...
+//...
 ```
+
+L'idée est donc assey simple : on recuppère la durée de vie en même temps que le token, et on lance un compte-à-rebour (timeout) sur la fonction qui va appeller le endpoint refresh token 5 seconde avant le péromption du token. Cette route de refresh fonctionnera aussi longtemps que le token créé lors du login sera valide. C'est donc ce token qui determinera la durée d'une session de connexion.
+
+![Rafraichissement du jeton](refreshToken.gif)
+
+## La session
+
+## La déconnexion
+
+## Dernier détail
+
+## Conclusion
+
+Beaucoup plus complexités côté front, mais aussi surtout coté back. A voir selon la criticité de vos JWT - et éventuellement du bien fonfé d'utilisé un JWT pour votre authentification ra.

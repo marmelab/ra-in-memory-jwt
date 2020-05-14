@@ -16,7 +16,9 @@ const authProvider = {
                 }
                 return response.json();
             })
-            .then(({ token, tokenExpiry }) => inMemoryJWT.setToken(token, tokenExpiry));
+            .then(({ token, tokenExpiry }) => {
+                return inMemoryJWT.setToken(token, tokenExpiry);
+            });
     },
     logout: () => {
         inMemoryJWT.ereaseToken();

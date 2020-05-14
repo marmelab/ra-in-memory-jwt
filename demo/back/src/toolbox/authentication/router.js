@@ -53,7 +53,7 @@ router.post('/authenticate', async (ctx) => {
             rememberMe,
             validity_timestamp: rememberMe
                 ? currentTimestamp +
-                  config.security.refreshToken.rememberExpiration
+                config.security.refreshToken.rememberExpiration
                 : currentTimestamp + config.security.refreshToken.expiration,
         };
         const newRefreshToken = await createRefreshToken(newTokenData);

@@ -36,12 +36,13 @@ const inMemoryJWTManager = () => {
             headers: new Headers({ 'Content-Type': 'application/json' }),
             credentials: 'include',
         });
+        console.log(`Calling the refresh-token endpoint`);
         return fetch(request)
             .then((response) => {
                 if (response.status !== 200) {
                     ereaseToken();
                     global.console.log(
-                        'Failed to renew the jwt from the refresh token.'
+                        'Token renewal failure'
                     );
                     return { token: null };
                 }
