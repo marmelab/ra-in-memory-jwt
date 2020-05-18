@@ -363,11 +363,29 @@ const authProvider = {
 //...
 ```
 
-L'idée est donc assey simple : on recuppère la durée de vie en même temps que le token, et on lance un compte-à-rebour (timeout) sur la fonction qui va appeller le endpoint refresh token 5 seconde avant le péromption du token. Cette route de refresh fonctionnera aussi longtemps que le token créé lors du login sera valide. C'est donc ce token qui determinera la durée d'une session de connexion.
+L'idée est donc assez simple : on recupère la durée de vie en même temps que le token, et on lance un compte-à-rebour (timeout) sur la fonction qui va appeller le endpoint refresh token 5 seconde avant le péromption du token. Cette route de refresh fonctionnera aussi longtemps que le token créé lors du login sera valide. C'est donc ce token qui determinera la durée d'une session de connexion.
 
 ![Rafraichissement du jeton](refreshToken.gif)
 
 ## La session
+
+Le mécanisme que l'on vient de voir permet donc de ne pas nous déconnecter à la fin de la durée de vie du JWT. Pour autant, il ne permet pas de maintenir une session, par exemple si l'on rafraichie la page ! Pour parvenir à ce resultat, il nous suffit en fait de faire un call au endpoint `/refresh-token` lorsque l'on test les droits de l'utilisateur (le `checkAuth` de l'`authProvider`):
+
+```javascript
+//in authProvider.js
+//...
+    checkAuth: () => {
+        console.log('checkAuth');
+        if (!inMemoryJWT.getToken()) {
+            inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
+            return inMemoryJWT.getRefreshedJWT().then(tokenHasBeenRefreshed => {
+                return tokenHasBeenRefreshed ? Promise.resolve() : Promise.reject();
+            });
+        } else {
+            return Promise.resolve();
+        }
+    },
+```
 
 ## La déconnexion
 

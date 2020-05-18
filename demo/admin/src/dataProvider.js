@@ -29,11 +29,19 @@ export default (apiUrl) => {
             headers: new Headers({ Accept: 'application/json' }),
         };
         const token = inMemoryJWT.getToken();
+
         if (token) {
             options.headers.set('Authorization', `Bearer ${token}`);
+            return fetchUtils.fetchJson(url, options);
+        } else {
+            inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
+            return inMemoryJWT.getRefreshedJWT().then((gotFreshToken) => {
+                if (gotFreshToken) {
+                    options.headers.set('Authorization', `Bearer ${inMemoryJWT.getToken()}`);
+                };
+                return fetchUtils.fetchJson(url, options);
+            });
         }
-
-        return fetchUtils.fetchJson(url, options);
     };
 
     return {

@@ -26,11 +26,9 @@ const authProvider = {
     },
 
     checkAuth: () => {
-        if (inMemoryJWT.getToken()) {
-            return Promise.resolve();
-        } else {
-            return Promise.reject();
-        }
+        return inMemoryJWT.waitForTokenRefresh().then(() => {
+            return inMemoryJWT.getToken() ? Promise.resolve() : Promise.reject();
+        });
     },
 
     checkError: (error) => {
@@ -43,11 +41,9 @@ const authProvider = {
     },
 
     getPermissions: () => {
-        if (inMemoryJWT.getToken()) {
-            return Promise.resolve('ok');
-        } else {
-            return Promise.reject();
-        }
+        return inMemoryJWT.waitForTokenRefresh().then(() => {
+            return inMemoryJWT.getToken() ? Promise.resolve() : Promise.reject();
+        });
     },
 };
 

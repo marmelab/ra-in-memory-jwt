@@ -3,6 +3,7 @@ const inMemoryJWTManager = () => {
     let refreshEndpoint = '/refresh-token';
     let inMemoryJWT = null;
     let refreshTimeOutId;
+    let isRefreshing = null;
 
     // This listener will allow to disconnect a session of ra started in another tab
     window.addEventListener('storage', (event) => {
@@ -13,8 +14,8 @@ const inMemoryJWTManager = () => {
 
     const setRefreshTokenEndpoint = endpoint => refreshEndpoint = endpoint;
 
-    // This countdown feature is used to renew the JWT in a way that is transparent to the user.
-    // before it's no longer valid
+    // This countdown feature is used to renew the JWT before it's no longer valid
+    // in a way that is transparent to the user.
     const refreshToken = (delay) => {
         refreshTimeOutId = window.setTimeout(
             getRefreshedJWT,
@@ -28,16 +29,26 @@ const inMemoryJWTManager = () => {
         }
     };
 
+    const waitForTokenRefresh = () => {
+        if (!isRefreshing) {
+            return Promise.resolve();
+        }
+        return isRefreshing.then(() => {
+            isRefreshing = null;
+            return true;
+        });
+    }
+
     // The method make a call to the refresh-token endpoint
-    // If there is a valid cookie, the endpoint will return a fresh jwt.
+    // If there is a valid cookie, the endpoint will set a fresh jwt in memory.
     const getRefreshedJWT = () => {
         const request = new Request(refreshEndpoint, {
             method: 'GET',
             headers: new Headers({ 'Content-Type': 'application/json' }),
             credentials: 'include',
         });
-        console.log(`Calling the refresh-token endpoint`);
-        return fetch(request)
+
+        isRefreshing = fetch(request)
             .then((response) => {
                 if (response.status !== 200) {
                     ereaseToken();
@@ -56,6 +67,8 @@ const inMemoryJWTManager = () => {
                 ereaseToken();
                 return false;
             });
+
+        return isRefreshing;
     };
 
 
@@ -78,10 +91,12 @@ const inMemoryJWTManager = () => {
 
     return {
         ereaseToken,
+        getRefreshedJWT,
         getToken,
         setLogoutEventName,
         setRefreshTokenEndpoint,
         setToken,
+        waitForTokenRefresh,
     }
 };
 
