@@ -20,9 +20,16 @@ const authProvider = {
                 return inMemoryJWT.setToken(token, tokenExpiry);
             });
     },
+
     logout: () => {
+        const request = new Request('http://localhost:8001/logout', {
+            method: 'GET',
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+        });
         inMemoryJWT.ereaseToken();
-        return Promise.resolve();
+
+        return fetch(request).then(() => '/login');
     },
 
     checkAuth: () => {

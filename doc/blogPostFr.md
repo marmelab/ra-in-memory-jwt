@@ -369,7 +369,9 @@ L'idée est donc assez simple : on recupère la durée de vie en même temps que
 
 ## La session
 
-Le mécanisme que l'on vient de voir permet donc de ne pas nous déconnecter à la fin de la durée de vie du JWT. Pour autant, il ne permet pas de maintenir une session, par exemple si l'on rafraichie la page ! Pour parvenir à ce resultat, il nous suffit en fait de faire un call au endpoint `/refresh-token` lorsque l'on test les droits de l'utilisateur (le `checkAuth` de l'`authProvider`):
+Le mécanisme que l'on vient de voir permet donc de ne pas nous déconnecter à la fin de la durée de vie du JWT. Pour autant, il ne permet pas de maintenir une session, par exemple si l'on rafraichie la page ! 
+
+Pour parvenir à ce resultat, il devrait suffir de faire un call au endpoint `/refresh-token` lorsque l'on test les droits de l'utilisateur (le `checkAuth` de l'`authProvider`):
 
 ```javascript
 //in authProvider.js
@@ -387,10 +389,140 @@ Le mécanisme que l'on vient de voir permet donc de ne pas nous déconnecter à 
     },
 ```
 
+Alors, cette solution marche, mais elle n'est pas forcement satisafaisante :
+
+screen gif
+
+En effet, React-admin, pour des raison d'optimistique rendering, va lancer le call à la liste avant le retour de la promesse de checkAuth. Du coup, ce call se fera sans JWT, avec un retour en 403, et donc un checkError qui va rediriger vers le login (après un logout, ce qui nous le verrons dans la partie suivante posserait problème !).
+
+Plusieur solution sont possible pour resoudre ce problème, en fonction de votre besoin. En effet, on pourrait imaginer que certaine route n'ai pas besoin de jeton JWT, comme les listes. Pour notre exemple, on considère que ce n'est pas le cas, et que toute les routes nécessitent une authentification (ce qu ine présage pas que l'on ait les droits sur toutes les routes d'ailleur, mais le jwt pourra justement porter les informations concernant ces droits !).
+
+Toutes les routes ayant besoin d'un token pour fonctionner, nous allons donc implémenter l'appel à la route `refresh-token` directement au niveau du client http :
+
+```javascript
+// in dataProvider
+
+const httpClient = (url) => {
+    const options = {
+        headers: new Headers({ Accept: 'application/json' }),
+    };
+    const token = inMemoryJWT.getToken();
+
+    if (token) {
+        options.headers.set('Authorization', `Bearer ${token}`);
+        return fetchUtils.fetchJson(url, options);
+    } else {
+        inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
+        return inMemoryJWT.getRefreshedJWT().then((gotFreshToken) => {
+            if (gotFreshToken) {
+                options.headers.set('Authorization', `Bearer ${inMemoryJWT.getToken()}`);
+            };
+            return fetchUtils.fetchJson(url, options);
+        });
+    }
+};
+
+```
+
+Cela resoud notre premier problème d'appel à la liste qui renvoyait une 403. Mais cela provoque un second problème : le `checkAuth` n'ayant pas de token, cela va aussi provoqué un logout et une redirection vers le login. La solution va conister à demander au checkAuth d'attentre la fin de la requête au `refresh-token` avant de retourner sa réponse. Et pour cela, on implémenter une methode `waitForTokenRefresh` au niveau du `inMemoryJWTManager`. Cette methode retourne une promesse resolue si aucun call vers le refresh token n'est en cours. Si un call est en cours, elle attent la resolution de ce call avant de renvoyer la resolution.
+
+```javascript
+// in inMemoryJWTManager
+
+const inMemoryJWTManager = () => {
+    ...
+    let isRefreshing = null;
+
+    ...
+
+    const waitForTokenRefresh = () => {
+        if (!isRefreshing) {
+            return Promise.resolve();
+        }
+        return isRefreshing.then(() => {
+            isRefreshing = null;
+            return true;
+        });
+    }
+
+    const getRefreshedJWT = () => {
+        const request = new Request(refreshEndpoint, {
+            method: 'GET',
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+        });
+
+        isRefreshing = fetch(request)
+            .then((response) => {
+                if (response.status !== 200) {
+                    ereaseToken();
+                    global.console.log(
+                        'Token renewal failure'
+                    );
+                    return { token: null };
+                }
+                return response.json();
+            })
+            .then(({ token, tokenExpiry }) => {
+                if (token) {
+                    setToken(token, tokenExpiry);
+                    return true;
+                }
+                ereaseToken();
+                return false;
+            });
+
+        return isRefreshing;
+    };
+
+    ...
+};
+```
+
+En fait, cette methode `waitForTokenRefresh` car elle va nous permettre d'attendre la fin des appel au refresh de token à different endroit de notre application React-admin, et donc de s'adapter à notre besoin. Ici, notre besoin consite donc à attentre la fin d'un potentiel appel au `refresh-token` lancer par le dataProvider dans le cas ou l'utilisatur ne serait pas authentifier, soit :
+
+```javascript
+// in authProvider.js
+    ...
+
+    checkAuth: () => {
+        return inMemoryJWT.waitForTokenRefresh().then(() => {
+            return inMemoryJWT.getToken() ? Promise.resolve() : Promise.reject();
+        });
+    },
+
+    ...
+
+    getPermissions: () => {
+        return inMemoryJWT.waitForTokenRefresh().then(() => {
+            return inMemoryJWT.getToken() ? Promise.resolve() : Promise.reject();
+        });
+    },
+```
+
 ## La déconnexion
 
-## Dernier détail
+Le dernier point à adresser touche à la déconnexion. En effet, avec notre nouveau mécanisme, la deconnexion marche pour le session courante. Mais dès que l'on recharge la page, nous somme de nouveau connecter ! Pour la seul solution consiste à appeller un endpoint de déconnexion de l'API, car seul l'API pourra invalider le cookie de rafraishissement ! (du moins proprement si vous avez implementer de la logique sur le cookies de rafraichissement côté back).
+
+```javascript
+// in authProvider.js
+
+    logout: () => {
+        const request = new Request('http://localhost:8001/logout', {
+            method: 'GET',
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+        });
+        inMemoryJWT.ereaseToken();
+
+        return fetch(request).then(() => '/login');
+    },
+```
 
 ## Conclusion
 
-Beaucoup plus complexités côté front, mais aussi surtout coté back. A voir selon la criticité de vos JWT - et éventuellement du bien fonfé d'utilisé un JWT pour votre authentification ra.
+Ca marche bien ! Cela devrait être bien sécurisé ! Possibiliter de doubler cela avec d'autre tactiques (cf post de blog de françois)
+
+Beaucoup plus complexités côté front, mais aussi coté back. 
+
+Question : bonne idée d'utiliser un JWT pour une simple authentification ? Juste un cookie, et une verification des droits basc depuis le cookie ? Cela mérite de se poser la question, et ne pas considérer de facto le JWT comme la solution standard à utiliser !
