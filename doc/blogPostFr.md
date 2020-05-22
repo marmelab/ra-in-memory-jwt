@@ -1,13 +1,8 @@
-On utilise très régulièrement les [JSON Web Token(JWT)](https://tools.ietf.org/html/rfc7519) pour gérer l'authentification des utilisateurs. Et c'est par exemple la manière dont est illustrer l'authentification dans la documentation de React-admin.
+Afin de sécuriser au mieux l'authentification de React-admin, voyons comment stocker un Json Web Token en mémoire plutôt que dans le localStorage du navigateur.
 
-Mais dans cette exemple, le JWT est stocker dans le locale storage. Ce qui pour certain est considérer comme une très mauvaise pratique !
+React-admin s'appuie sur un très efficace [authProvider](https://marmelab.com/react-admin/Authentication.html) pour gérer l'authentification. Et sans doute par habitude ou mimétisme, on utilise souvent sur un [JSON Web Token(JWT)](https://tools.ietf.org/html/rfc7519) pour transmettre cette authentification entre React-admin et l'API, JWT que l'on stock ensuite par commodité dans le [localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) du navigateur. Mais ce n'est pourtant pas une bonne pratique, comme l'explique par exemple Randall Degges dans son article ["Please Stop Using Local Storage "](https://dev.to/rdegges/please-stop-using-local-storage-1i04). Et pour le plus curieux, voici par exemple comment ["Stealing JWTs in localStorage via XSS"](https://medium.com/redteam/stealing-jwts-in-localstorage-via-xss-6048d91378a0).
 
-[How to securely store JWT tokens.](https://dev.to/gkoniaris/how-to-securely-store-jwt-tokens-51cf)
-
-
-Cette article illustre l'implementation décrit dans le post de blog [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/) qui consiste à ne plus stocker le JWT dans le local storage, mais en mémoire. Ce qui n'est pas fait pour simpleifier une implémentation user friendly !
-
-Ce qu'il faut retenir de cette implementation, c'est que l'on considère que la meilleur manière de conserver le JWT côté client est de la conserver en mémoire. C'est ainsi qu'on minimisera au maximum le vol potentiel de ce jeton, jeton qui aura au demeurant une durée de vie assez courte (10 min). Mais pour pallier aux inconveniants de ne le maintenir qu'en mémoire (on perd le jeton en rafraichissant la page par exemple !), on va implémenter un mécanisme permettant de renouveller ce jeton en se basant sur un endpoint (`/refresh-token`) qui utilisera un cookie qui lui sera sécurisé. La table `refresh_token` est la table utilisée pour gérer ces jetons de rafraichissement de JWT.
+Mais alors comment utiliser un JWT pour gérer son authentification React-admin de manière plus sécurisée ? Ce post de blog va illustrer une implémentation du principe proposé par l'équipe d'[Hasura](https://hasura.io) dans leur article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/). Ce principe consiste "tout simplement" à stocker ce jeton en mémoire. Ce qui n'est pas si simple en fait !
 
 ## Première mise en place
 
@@ -193,7 +188,7 @@ Ou bien lorsque l'on se déconnecte d'un tab alors que l'on est aussi connecter 
 
 ![Connexion deux tabs](raInMemoryJwtTwoTabs.gif)
 
-## Le problème des deux tabs
+## Le problème des onglets
 
 Lorsque le JWT est stocké dans le local storage, deux session de react admin lancé dans deux tab du navigateur vont pouvoir se partager se JWT. Et lorsque l'on se deconnecte, la suppression du JWT dans la locale storage va donc impacter les deux tabs. Ce n'est plus la cas lorsque le JWT est stocker en mémoire. La solution proposer dans l'article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/) est assez maligne, et passe par ... le local storage :)
 
