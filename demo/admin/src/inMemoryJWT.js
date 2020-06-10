@@ -1,17 +1,11 @@
 const inMemoryJWTManager = () => {
+    let inMemoryJWT = null;
+    let isRefreshing = null;
     let logoutEventName = 'ra-logout';
     let refreshEndpoint = '/refresh-token';
-    let inMemoryJWT = null;
     let refreshTimeOutId;
-    let isRefreshing = null;
 
-    // This listener will allow to disconnect a session of ra started in another tab
-    window.addEventListener('storage', (event) => {
-        if (event.key === logoutEventName) {
-            inMemoryJWT = null;
-        }
-    });
-
+    const setLogoutEventName = name => logoutEventName = name;
     const setRefreshTokenEndpoint = endpoint => refreshEndpoint = endpoint;
 
     // This countdown feature is used to renew the JWT before it's no longer valid
@@ -87,7 +81,12 @@ const inMemoryJWTManager = () => {
         return true;
     }
 
-    const setLogoutEventName = name => logoutEventName = name;
+    // This listener will allow to disconnect a session of ra started in another tab
+    window.addEventListener('storage', (event) => {
+        if (event.key === logoutEventName) {
+            inMemoryJWT = null;
+        }
+    });
 
     return {
         ereaseToken,

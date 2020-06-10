@@ -1,12 +1,14 @@
 Afin de sécuriser au mieux l'authentification de React-admin, voyons comment stocker un Json Web Token en mémoire plutôt que dans le localStorage du navigateur.
 
-React-admin s'appuie sur un très efficace [authProvider](https://marmelab.com/react-admin/Authentication.html) pour gérer l'authentification. Et sans doute par habitude ou mimétisme, on utilise souvent sur un [JSON Web Token(JWT)](https://tools.ietf.org/html/rfc7519) pour transmettre cette authentification entre React-admin et l'API, JWT que l'on stock ensuite par commodité dans le [localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) du navigateur. Mais ce n'est pourtant pas une bonne pratique, comme l'explique par exemple Randall Degges dans son article ["Please Stop Using Local Storage "](https://dev.to/rdegges/please-stop-using-local-storage-1i04). Et pour le plus curieux, voici par exemple comment ["Stealing JWTs in localStorage via XSS"](https://medium.com/redteam/stealing-jwts-in-localstorage-via-xss-6048d91378a0).
+React-admin s'appuie sur un très efficace [authProvider](https://marmelab.com/react-admin/Authentication.html) pour gérer l'authentification. Et sans doute par habitude ou mimétisme, on utilise souvent sur un [JSON Web Token(JWT)](https://tools.ietf.org/html/rfc7519) pour transmettre cette authentification entre React-admin et l'API, JWT que l'on stocke ensuite par commodité dans le [localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) du navigateur. Mais ce n'est pourtant pas une bonne pratique, comme l'explique par exemple Randall Degges dans son article ["Please Stop Using Local Storage"](https://dev.to/rdegges/please-stop-using-local-storage-1i04). Et pour le plus curieux, voici par exemple comment ["Stealing JWTs in localStorage via XSS"](https://medium.com/redteam/stealing-jwts-in-localstorage-via-xss-6048d91378a0).
 
-Mais alors comment utiliser un JWT pour gérer son authentification React-admin de manière plus sécurisée ? Ce post de blog va illustrer une implémentation du principe proposé par l'équipe d'[Hasura](https://hasura.io) dans leur article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/). Ce principe consiste "tout simplement" à stocker ce jeton en mémoire. Ce qui n'est pas si simple en fait !
+Mais alors comment utiliser un JWT pour gérer son authentification React-admin de manière plus sécurisée ? Ce post de blog va illustrer une implémentation du principe proposé par l'équipe d'[Hasura](https://hasura.io) dans leur article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/). Ce principe consiste "tout simplement" à stocker ce jeton en mémoire.
+
+Ce qui n'est pas si simple en fait !
 
 ## Première mise en place
 
-On considère donc que l'on a une API possédant une route s'authentification qui en cas de succès retournera un JWT. Voici un exemple d'une tel implementation avec [Koa](https://koajs.com/) et  [node-jsonwebtoken](https://github.com/auth0/node-jsonwebtoken#readme) :
+Partons du postulat que l'on a une API possédant une route d'authentification qui en cas de succès retournera un JWT. Voici un exemple d'une telle implémentation avec [Koa](https://koajs.com/) et  [node-jsonwebtoken](https://github.com/auth0/node-jsonwebtoken#readme) :
 
 ```javascript
 router.post('/authenticate', async (ctx) => {
@@ -28,12 +30,17 @@ router.post('/authenticate', async (ctx) => {
         expiresIn: config.security.jwt.expiration,
     });
 
-    ctx.body = { token };
+    ctx.body = {
+        token: token,
+        tokenExpiry: config.security.jwt.expiration,
+    };
 });
 
 ```
 
-Et voici une première version de `ra-in-memory-jwt` qui va nous servir à stocker le jeton post authentification, en mémoire, et non plus dans le local storage :
+> Ici le code est minimal, vous pourrez trouver un exemple plus complet dans le code de la démo sur le dépôt de [ra-in-memory-jwt](https://github.com/marmelab/ra-in-memory-jwt/tree/master/demo).
+
+Et voici une première version de `ra-in-memory-jwt` qui va nous servir à stocker le jeton obtenu lors de l'authentification, en mémoire, et non pas dans le `localStorage` :
 
 ```javascript
 // inMemoryJwt.js
@@ -62,9 +69,9 @@ const inMemoryJWTManager = () => {
 export default inMemoryJWTManager();
 ```
 
-Et voici son implementation dans une application react-admin basique :
+On profite donc d'une [closure](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures) pour instancier la variable `inMemoryJWT` qui portera en mémoire notre JWT, puisque l'on execute la fonction inMemoryJWTManager lors de l'export.
 
-l'application principale :
+Voyons maintenant comment utiliser ce `inMemoryJWTManager` dans une application React-admin basique. Tout d'abord, nous déclarons une application `App` :
 
 ```javascript
 // App.js
@@ -85,7 +92,7 @@ const App = () => (
 export default App;
 ```
 
-La gestion de l'authentification :
+Ensuite, il faut configurer le fournisseur d'authentification, le `authProvider` :
 
 ```javascript
 // in authProvider.js
@@ -133,7 +140,7 @@ const authProvider = {
 export default authProvider;
 ```
 
-La gestion des appels à l'API
+Puis il faut configurer le fournisseur de données, le `dataProvider`. En effet, c'est ce `dataProvider` qui se chargera de transmettre le JWT à l'API, via un en-tête http `Authorization` :
 
 ```javascript
 // in dataProvider.js
@@ -178,19 +185,23 @@ export default (apiUrl) => {
 };
 ```
 
-Cela marche très bien. C'est très securisé, on ne voit pas le JWT dans le local storage. Mais l'experience utilisateur n'est pas extraordinaire !
+Notre application est d'hors et déjà fonctionnelle et sécurisée. Le JWT n'est en effet plus visible dans le `localStorage` du navigateur. Mais l'expériences utilisateur n'est pas extraordinaire !
 
-Par exemple, lorsque l'on refresh la page :
+Par exemple, lorsque l'on recharge la page :
 
 ![Lorsque l'on recharge la page](raInMemoryJwtRefresh.gif)
 
-Ou bien lorsque l'on se déconnecte d'un tab alors que l'on est aussi connecter sur une seconde :
+Ou bien lorsque l'on se déconnecte d'un onglet alors que l'on est aussi connecté sur un second :
 
-![Connexion deux tabs](raInMemoryJwtTwoTabs.gif)
+![Connexion deux onglets](raInMemoryJwtTwoTabs.gif)
 
 ## Le problème des onglets
 
-Lorsque le JWT est stocké dans le local storage, deux session de react admin lancé dans deux tab du navigateur vont pouvoir se partager se JWT. Et lorsque l'on se deconnecte, la suppression du JWT dans la locale storage va donc impacter les deux tabs. Ce n'est plus la cas lorsque le JWT est stocker en mémoire. La solution proposer dans l'article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/) est assez maligne, et passe par ... le local storage :)
+Lorsque le JWT est stocké dans le `localStorage`, deux sessions de React-admin lancées dans deux onglets du navigateur vont pouvoir se partager ce JWT. Et lorsque l'on se déconnecte, la suppression du JWT dans le `localStorage` va donc impacter les deux onglets.
+
+Ce n'est plus la cas lorsque le JWT est stocké en mémoire, ou chaque instance de React-admin va gérer le stockage du JWT indépendamment l'une de l'autre.
+
+La solution proposer dans l'article [The Ultimate Guide to handling JWTs on frontend clients](https://hasura.io/blog/best-practices-of-using-jwt-with-graphql/) est assez maligne, et passe par ... le `localStorage` :)
 
 ```javascript
 // inMemoryJwt.js
@@ -227,22 +238,26 @@ const inMemoryJWTManager = () => {
 export default inMemoryJWTManager();
 ```
 
-Ainsi, lorsque l'utilisateur se déconnecte depuis une tab, il génère un évenement sur l'item `ra-logout` du locale storage, évènement écouté par toutes les instances de `inMemoryJWT`.
+Ainsi, lorsque l'utilisateur se déconnecte depuis un onglet, il génère un évènement sur la clé `ra-logout` du `localStorage`, évènement écouté par toutes les instances de `inMemoryJWT`.
 
 ## Gérer une session sur un durée de vie plus longue que celle du token
 
-L'idée directrice est d'avoir des token ayany un durée de vie limitée. Disons 5 min. Même si l'utilisateur ne recherche pas sa page, la session cessera lorsque le token ne sera plus valide. Comment étendre cette durée de session ? Et bien avec un token ! Mais ici, nous utiliserons un token très securisé (https only, same domain, etc) qui va nous permettre d'obtenir un nouveau token avant que le token courant ne soit périmé !
+Un principe important lors de la sécurisation des JWT est d'avoir des tokens ayant une durée de vie limitée. Disons 5 min. Ainsi, si malgré tout nos effort ce jeton est volé, il ne sera pas valide très longtemps.
 
-Cela va tout d'abord nécessité du code supplémentaire coté back pour :
+Donc, même si l'utilisateur ne recharge pas sa page, la session cessera lorsque le token ne sera plus valide. Ce qui implique des sessions utilisateurs très courtes.
 
-1. Recevoir en plus du token sa durée de vie lors de la connexion. Nous pourrions le faire en décodant le token coté front, mais cela implique une complexité inutile !
-2. De poser un token `refresh-token` lors de la connexion
-   
-En effet, ce token va nous permettre d'interroger une nouvelle route à mettre en place côté API : la route `/refresh-token`. Lorsque le front va interroger cette route, et dans le cas ou le `refresh-token` est valide, ce endpoint va renvoyer un nouveau token qui pourra remplacer en memoire le token périmé.
+Comment étendre cette durée de session ? Et bien avec un cookie ! Mais ici, nous utiliserons un cookie très sécurisé ([httpOnly](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Secure_and_HttpOnly_cookies), [SameSite](https://web.dev/samesite-cookies-explained/), etc ...) qui va nous permettre d'obtenir un nouveau JWT avant que le JWT courant ne soit périmé !
 
-Je ne détaille pas ici le détail de l'implémentation côté API, mais vous pourrez trouver un exemple d'implémentation dans la demo du projet.
+Cela va tout d'abord induire du code supplémentaire coté back pour :
 
-Mais voyons comment cela va fonctionner côté React-admin.
+1. Recevoir en plus du token sa durée de vie lors de la connexion. Nous pourrions le faire en décodant le token coté front, mais cela implique manipulation inutile !
+2. De poser un cookie `refresh-token` lors de l'authentification
+
+En effet, ce token va nous permettre d'interroger une nouvelle route à mettre en place côté API : la route `/refresh-token`. Lorsque le front va interroger cette route, et dans le cas ou le `refresh-token` est valide, cette route va renvoyer un nouveau token qui pourra remplacer en mémoire le token périmé.
+
+Je ne détaille pas ici le détail de l'implémentation côté API, mais vous pourrez trouver un exemple plus complet dans le code de la démo sur le dépôt de [ra-in-memory-jwt](https://github.com/marmelab/ra-in-memory-jwt/tree/master/demo)
+
+Par contre, voyons comment cela va fonctionner du côté de l'application React-admin.
 
 ```javascript
 const inMemoryJWTManager = () => {
@@ -358,15 +373,15 @@ const authProvider = {
 //...
 ```
 
-L'idée est donc assez simple : on recupère la durée de vie en même temps que le token, et on lance un compte-à-rebour (timeout) sur la fonction qui va appeller le endpoint refresh token 5 seconde avant le péromption du token. Cette route de refresh fonctionnera aussi longtemps que le token créé lors du login sera valide. C'est donc ce token qui determinera la durée d'une session de connexion.
+L'idée est assez simple : on récupère la durée de vie en même temps que le token et on lance un compte-à-rebours (timeout) sur la fonction qui va appeler la route `/refresh-token` 5 secondes avant le péremption du token. Cette route fonctionnera durant toute la durée de vie du cookie créé lors de l'authentification. C'est donc ce cookie qui déterminera la durée d'une session de connexion.
 
 ![Rafraichissement du jeton](refreshToken.gif)
 
 ## La session
 
-Le mécanisme que l'on vient de voir permet donc de ne pas nous déconnecter à la fin de la durée de vie du JWT. Pour autant, il ne permet pas de maintenir une session, par exemple si l'on rafraichie la page ! 
+Le mécanisme que l'on vient de voir permet d'avoir une session authentifiée plus longue que la durée de vie du JWT. Mais il ne permet pas de maintenir une session, par exemple si l'on rafraichie la page !
 
-Pour parvenir à ce resultat, il devrait suffir de faire un call au endpoint `/refresh-token` lorsque l'on test les droits de l'utilisateur (le `checkAuth` de l'`authProvider`):
+Pour parvenir à ce résultat, il devrait suffire de faire un appel à la route `/refresh-token` lorsque l'on test les droits de l'utilisateur (le `checkAuth` de l'`authProvider`):
 
 ```javascript
 //in authProvider.js
@@ -384,15 +399,18 @@ Pour parvenir à ce resultat, il devrait suffir de faire un call au endpoint `/r
     },
 ```
 
-Alors, cette solution marche, mais elle n'est pas forcement satisafaisante :
+Cette solution fonctionne. Mais elle n'est pas pour autant très satisfaisante :
 
-screen gif
+![Maintient d'une session, premier essai](./jwtSessionFirstTry.gif)
 
-En effet, React-admin, pour des raison d'optimistique rendering, va lancer le call à la liste avant le retour de la promesse de checkAuth. Du coup, ce call se fera sans JWT, avec un retour en 403, et donc un checkError qui va rediriger vers le login (après un logout, ce qui nous le verrons dans la partie suivante posserait problème !).
+En effet, React-admin, pour des raisons d'[optimistic rendering](https://medium.com/@whosale/optimistic-and-pessimistic-ui-rendering-approaches-bc49d1298cc0), va lancer l'appel à la vue courante (dans notre exemple, une vue liste) **avant** le retour de la promesse de `checkAuth`.
+Du coup, cet appel se fera sans le JWT, avec un retour en `403`, entrainant une redirection vers la page d'authentification par la méthode `checkError` de l'`authProvider`. Par contre, la page d'authentification va elle "profiter" du retour du JWT, et va donc ... rediriger vers la vue d'origine.
 
-Plusieur solution sont possible pour resoudre ce problème, en fonction de votre besoin. En effet, on pourrait imaginer que certaine route n'ai pas besoin de jeton JWT, comme les listes. Pour notre exemple, on considère que ce n'est pas le cas, et que toute les routes nécessitent une authentification (ce qu ine présage pas que l'on ait les droits sur toutes les routes d'ailleur, mais le jwt pourra justement porter les informations concernant ces droits !).
+Plusieurs solution sont possibles pour résoudre ce problème en fonction de votre besoin.
 
-Toutes les routes ayant besoin d'un token pour fonctionner, nous allons donc implémenter l'appel à la route `refresh-token` directement au niveau du client http :
+En effet, on pourrait imaginer que certaine route n'aient pas besoin de jeton JWT, comme les listes. C'est la cas si vous utilisez React-admin pour afficher les vues de consultation (le `list` et le `show`) publiquement.
+
+Mais pour notre exemple, on considère que ce n'est pas le cas et que toute les routes nécessitent une authentification. Toutes les routes ayant besoin d'un token pour fonctionner, nous allons donc implémenter l'appel à la route `refresh-token` directement au niveau du client http :
 
 ```javascript
 // in dataProvider
@@ -419,7 +437,15 @@ const httpClient = (url) => {
 
 ```
 
-Cela resoud notre premier problème d'appel à la liste qui renvoyait une 403. Mais cela provoque un second problème : le `checkAuth` n'ayant pas de token, cela va aussi provoqué un logout et une redirection vers le login. La solution va conister à demander au checkAuth d'attentre la fin de la requête au `refresh-token` avant de retourner sa réponse. Et pour cela, on implémenter une methode `waitForTokenRefresh` au niveau du `inMemoryJWTManager`. Cette methode retourne une promesse resolue si aucun call vers le refresh token n'est en cours. Si un call est en cours, elle attent la resolution de ce call avant de renvoyer la resolution.
+Cela résout notre premier problème d'appel à la liste qui renvoyait une `403`. Mais cela provoque un second problème : le `getPermissions` n'ayant pas de token, cela va aussi provoquer une déconnexion et une redirection vers l'authentification.
+
+En fait, on a globalement un problème de concurrence entre les méthodes dépendantes du JWT, toutes ces méthodes pouvant avoir besoin de lancer un appel asynchrone à la route de rafraichissement du jeton !
+
+La solution va consister à demander à ces méthodes du `authProvider` d'attendre la fin d'une éventuelle requête vers la route `/refresh-token` lancée par le `dataProvider` avant de retourner leur réponse.
+
+Et pour cela, on implémente une méthode `waitForTokenRefresh` au niveau du `inMemoryJWTManager`.
+
+Cette méthode retourne une promesse résolue si aucun appel vers le `refresh-token` n'est en cours. Si un appel est en cours, elle attend la résolution de cet appel avant de renvoyer la résolution de la promesse.
 
 ```javascript
 // in inMemoryJWTManager
@@ -474,7 +500,7 @@ const inMemoryJWTManager = () => {
 };
 ```
 
-En fait, cette methode `waitForTokenRefresh` car elle va nous permettre d'attendre la fin des appel au refresh de token à different endroit de notre application React-admin, et donc de s'adapter à notre besoin. Ici, notre besoin consite donc à attentre la fin d'un potentiel appel au `refresh-token` lancer par le dataProvider dans le cas ou l'utilisatur ne serait pas authentifier, soit :
+La méthode `waitForTokenRefresh` est donc implémentée au sein de l'`authProvider` :
 
 ```javascript
 // in authProvider.js
@@ -495,9 +521,11 @@ En fait, cette methode `waitForTokenRefresh` car elle va nous permettre d'attend
     },
 ```
 
+![Maintient d'une session, second essai](./jwtSessionSecondTry.gif)
+
 ## La déconnexion
 
-Le dernier point à adresser touche à la déconnexion. En effet, avec notre nouveau mécanisme, la deconnexion marche pour le session courante. Mais dès que l'on recharge la page, nous somme de nouveau connecter ! Pour la seul solution consiste à appeller un endpoint de déconnexion de l'API, car seul l'API pourra invalider le cookie de rafraishissement ! (du moins proprement si vous avez implementer de la logique sur le cookies de rafraichissement côté back).
+Le dernier point à adresser touche à la déconnexion. En effet, avec notre nouveau mécanisme, la déconnexion marche pour le session courante. Mais dès que l'on recharge la page, nous somme de nouveau connecté ! La seule solution consiste à appeler une **route de déconnexion** de l'API, car seule l'API pourra invalider le cookie de rafraichissement !.
 
 ```javascript
 // in authProvider.js
@@ -516,8 +544,14 @@ Le dernier point à adresser touche à la déconnexion. En effet, avec notre nou
 
 ## Conclusion
 
-Ca marche bien ! Cela devrait être bien sécurisé ! Possibiliter de doubler cela avec d'autre tactiques (cf post de blog de françois)
+Le code décrit dans ce post permet de gérer une authentification React-admin basée sur l'utilisation d'un Json Web Token de manière bien sécurisée, el le stockant en mémoire, sans être au détriment du confort de l'utilisateur.
 
-Beaucoup plus complexités côté front, mais aussi coté back. 
+Est-ce que pour autant `ra-in-memory-jwt` est amené à devenir une partie incontournable de l'écosystème React-admin ?
 
-Question : bonne idée d'utiliser un JWT pour une simple authentification ? Juste un cookie, et une verification des droits basc depuis le cookie ? Cela mérite de se poser la question, et ne pas considérer de facto le JWT comme la solution standard à utiliser !
+J'aimerais bien car j'avoue que cela flatterait un peu mon égo. Mais je suis persuadé que ce n'est pas souhaitable !
+
+En effet, son utilisation apporte beaucoup de complexité. Une complexité que je soupçonne d'être inutile dans bien des cas ! Il faut se poser la bonne question : **à quel besoin répond l'utilisation d'un Json Web Token pour gérer l'authentification de mon application React-admin (ou non basée sur React-admin d'ailleurs) ?**
+
+Si vous interagissez par exemple avec un gros système de micro-services qui utilisera ce JWT pour partager l'authentification de l'utilisateur entre les différents services, alors oui, il est possible que vous ayez intérêt à vous pencher sur `ra-in-memory-jwt`.
+
+Par contre, si votre application React-admin interagit avec une API plus monolithique, il y a de fortes chances pour que votre authentification n'est pas besoin de plus qu'un bon cookie. Pour peu que vous appliquiez les mêmes bonnes pratiques de sécurité que celles utilisées par le cookie décrit dans ce post gérant la route de `refresh-token`.
