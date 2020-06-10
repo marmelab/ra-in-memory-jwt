@@ -35,7 +35,7 @@ export default (apiUrl) => {
             return fetchUtils.fetchJson(url, options);
         } else {
             inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
-            return inMemoryJWT.getRefreshedJWT().then((gotFreshToken) => {
+            return inMemoryJWT.getRefreshedToken().then((gotFreshToken) => {
                 if (gotFreshToken) {
                     options.headers.set('Authorization', `Bearer ${inMemoryJWT.getToken()}`);
                 };

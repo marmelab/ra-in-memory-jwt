@@ -18,7 +18,7 @@ const inMemoryJWTManager = () => {
     // in a way that is transparent to the user.
     const refreshToken = (delay) => {
         refreshTimeOutId = window.setTimeout(
-            getRefreshedJWT,
+            getRefreshedToken,
             delay * 1000 - 5000
         ); // Validity period of the token in seconds, minus 5 seconds
     };
@@ -41,7 +41,7 @@ const inMemoryJWTManager = () => {
 
     // The method make a call to the refresh-token endpoint
     // If there is a valid cookie, the endpoint will set a fresh jwt in memory.
-    const getRefreshedJWT = () => {
+    const getRefreshedToken = () => {
         const request = new Request(refreshEndpoint, {
             method: 'GET',
             headers: new Headers({ 'Content-Type': 'application/json' }),
@@ -91,7 +91,7 @@ const inMemoryJWTManager = () => {
 
     return {
         ereaseToken,
-        getRefreshedJWT,
+        getRefreshedToken,
         getToken,
         setLogoutEventName,
         setRefreshTokenEndpoint,

@@ -264,7 +264,7 @@ const inMemoryJWTManager = () => {
     // before it's no longer valid
     const refreshToken = (delay) => {
         refreshTimeOutId = window.setTimeout(
-            getRefreshedJWT,
+            getRefreshedToken,
             delay * 1000 - 5000
         ); // Validity period of the token in seconds, minus 5 seconds
     };
@@ -277,7 +277,7 @@ const inMemoryJWTManager = () => {
 
     // The method make a call to the refresh-token endpoint
     // If there is a valid cookie, the endpoint will return a fresh jwt.
-    const getRefreshedJWT = () => {
+    const getRefreshedToken = () => {
         const request = new Request(refreshEndpoint, {
             method: 'GET',
             headers: new Headers({ 'Content-Type': 'application/json' }),
@@ -375,7 +375,7 @@ Pour parvenir à ce resultat, il devrait suffir de faire un call au endpoint `/r
         console.log('checkAuth');
         if (!inMemoryJWT.getToken()) {
             inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
-            return inMemoryJWT.getRefreshedJWT().then(tokenHasBeenRefreshed => {
+            return inMemoryJWT.getRefreshedToken().then(tokenHasBeenRefreshed => {
                 return tokenHasBeenRefreshed ? Promise.resolve() : Promise.reject();
             });
         } else {
@@ -408,7 +408,7 @@ const httpClient = (url) => {
         return fetchUtils.fetchJson(url, options);
     } else {
         inMemoryJWT.setRefreshTokenEndpoint('http://localhost:8001/refresh-token');
-        return inMemoryJWT.getRefreshedJWT().then((gotFreshToken) => {
+        return inMemoryJWT.getRefreshedToken().then((gotFreshToken) => {
             if (gotFreshToken) {
                 options.headers.set('Authorization', `Bearer ${inMemoryJWT.getToken()}`);
             };
@@ -440,7 +440,7 @@ const inMemoryJWTManager = () => {
         });
     }
 
-    const getRefreshedJWT = () => {
+    const getRefreshedToken = () => {
         const request = new Request(refreshEndpoint, {
             method: 'GET',
             headers: new Headers({ 'Content-Type': 'application/json' }),
