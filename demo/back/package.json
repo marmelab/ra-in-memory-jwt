@@ -13,7 +13,7 @@
         "migrate:create": "knex migrate:make"
     },
     "dependencies": {
-        "bcrypt": "4.0.1",
+        "bcrypt": "5.0.0",
         "convict": "6.0.0",
         "jsonwebtoken": "8.5.1",
         "knex": "0.21.2",
