@@ -22,6 +22,12 @@ start: ## Start all service in containers
 stop: ## Stop all containers
 	${DC_DEMO} down
 
+connect-admin: ## Connectback container 
+	${DC_DEMO} exec admin ash
+
+connect-back: ## Connectback container 
+	${DC_DEMO} exec back ash
+
 logs: ## Display all logs
 	${DC_DEMO} logs -f
 
